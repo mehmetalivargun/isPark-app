@@ -1,12 +1,14 @@
 package com.mehmetalivargun.parkfinderforispark.ui.home
 
+import android.location.Location
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.maps.model.LatLng
 import com.mehmetalivargun.parkfinderforispark.data.remote.ParkDetail
 import com.mehmetalivargun.parkfinderforispark.data.remote.Parks
-import com.mehmetalivargun.parkfinderforispark.ui.MainRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -44,6 +46,8 @@ class HomeViewModel @Inject constructor(private val repository: MainRepository) 
     }
 
     private fun onSuccesDetail(parks: ParkDetail) {
+
+
         _parkDetail.postValue(parks)
 
     }

@@ -7,31 +7,37 @@ import android.content.res.Resources
 import android.graphics.Color
 import android.location.Location
 import android.net.Uri
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
-import androidx.fragment.app.viewModels
+import androidx.databinding.DataBindingUtil
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.*
+import com.google.android.gms.maps.*
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import dagger.hilt.android.AndroidEntryPoint
+
+
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.mehmetalivargun.parkfinderforispark.R
-import com.mehmetalivargun.parkfinderforispark.base.BaseFragment
-import com.mehmetalivargun.parkfinderforispark.databinding.FragmentHomeBinding
+import com.mehmetalivargun.parkfinderforispark.databinding.ActivityMainBinding
 import com.mehmetalivargun.parkfinderforispark.util.resolveToFee
-import dagger.hilt.android.AndroidEntryPoint
 import java.util.*
 
+
 @AndroidEntryPoint
-class HomeFragment : BaseFragment<FragmentHomeBinding>(R.layout.fragment_home), OnMapReadyCallback,
-    GoogleMap.OnMarkerClickListener {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback,
+    GoogleMap.OnMarkerClickListener, OnMapsSdkInitializedCallback {
     private val viewModel: HomeViewModel by viewModels()
+    private lateinit var binding: ActivityMainBinding
     private lateinit var map: GoogleMap
     private lateinit var lastLocation: Location
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -44,24 +50,28 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(R.layout.fragment_home), 
 
     }
 
-    override fun FragmentHomeBinding.initialize() {
-        this@HomeFragment.bottomSheet = binding.bottomSheet
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_main)
+        this.bottomSheet = binding.bottomSheet
         behavior = BottomSheetBehavior.from(bottomSheet)
         behavior.state = BottomSheetBehavior.STATE_HIDDEN
         binding.determinateBar.getProgressDrawable().setColorFilter(
             Color.RED, android.graphics.PorterDuff.Mode.SRC_IN
         )
+        MapsInitializer.initialize(this, MapsInitializer.Renderer.LATEST, this)
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
+        mapFragment?.getMapAsync(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        val mapFragment = childFragmentManager.findFragmentById(R.id.map) as? SupportMapFragment
-        mapFragment?.getMapAsync(this@HomeFragment)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
+
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
         try {
             val success = googleMap.setMapStyle(
                 MapStyleOptions.loadRawResourceStyle(
-                    requireContext(), R.raw.mapstyle
+                    this, R.raw.mapstyle
                 )
             )
             if (!success) {
@@ -78,49 +88,50 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(R.layout.fragment_home), 
 
     private fun setupMap() {
         if (ActivityCompat.checkSelfPermission(
-                requireContext(),
+                this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
 
 
             ActivityCompat.requestPermissions(
-                requireActivity(), arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
                 LOCATION_REQUEST_CODE
             )
             return
         }
         map.isMyLocationEnabled = true
-        fusedLocationClient.lastLocation.addOnSuccessListener(requireActivity()) { location ->
+        fusedLocationClient.lastLocation.addOnSuccessListener(this) { location ->
             if (location != null) {
                 lastLocation = location
                 val currentLatLong = LatLng(location.latitude, location.longitude)
+                val loc = Location("")
+                loc.latitude = location.latitude
+                loc.longitude = location.longitude
+
+
                 val sydney = LatLng(41.023, 28.952)
                 viewModel.parks.observe(this, {
                     it.forEach {
-                        val locat = LatLng(it.lat.toDouble(), it.lng.toDouble())
-                        placeMarkerOnMap(locat, it.parkID, false, it.parkName)
+                        if (it.isOpen==1){
+                            val locat = LatLng(it.lat.toDouble(), it.lng.toDouble())
+                            placeMarkerOnMap(locat, it.parkID,  it.parkName)
+                        }
+
                     }
                 })
-                map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLong, 13f))
-
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLong, 13.2f))
             }
         }
     }
 
-
     private fun placeMarkerOnMap(
         currentLatLong: LatLng,
         parkID: Int,
-        base: Boolean = true,
         name: String
     ) {
         val markerOptions = MarkerOptions().position(currentLatLong)
-        when (base) {
-            true -> markerOptions.title(name)
-                .icon(BitmapDescriptorFactory.defaultMarker(random.nextFloat() * 360))
-            false -> markerOptions.title(name)
-        }
+        markerOptions.title(name)
         map.addMarker(markerOptions)?.tag = parkID
     }
 
@@ -136,12 +147,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(R.layout.fragment_home), 
                     determinateBar.progress =
                         ((100.0 / it.capacity) * (it.capacity - it.emptyCapacity)).toInt()
                     val tariff = it.tariff.resolveToFee()
+                    tariffText.text = tariff
+                    workTime.text="${it.workHours} açık"
+                    emptyCapacity.text="Boş Alan :${it.emptyCapacity}"
 
-                    oneHourPrice.text = tariff[1]
-                    twoHourPrice.text = tariff[3]
-                    fourHourPrice.text = tariff[5]
-                    eightHourPrice.text = tariff[7]
-                    allDayPrice.text = tariff[9]
                     districtName.text = it.district
                 }
             }
@@ -159,6 +168,19 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(R.layout.fragment_home), 
         behavior.state = BottomSheetBehavior.STATE_COLLAPSED
         binding.determinateBar.progress = 12
         return false
+    }
+
+    override fun onMapsSdkInitialized(p0: MapsInitializer.Renderer) {
+        when (p0) {
+            MapsInitializer.Renderer.LATEST -> Log.d(
+                "MapsDemo",
+                "The latest version of the renderer is used."
+            )
+            MapsInitializer.Renderer.LEGACY -> Log.d(
+                "MapsDemo",
+                "The legacy version of the renderer is used."
+            )
+        }
     }
 
 

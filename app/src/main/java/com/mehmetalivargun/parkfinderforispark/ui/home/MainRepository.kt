@@ -1,4 +1,4 @@
-package com.mehmetalivargun.parkfinderforispark.ui
+package com.mehmetalivargun.parkfinderforispark.ui.home
 
 import com.mehmetalivargun.parkfinderforispark.data.remote.IsparkApi
 import com.mehmetalivargun.parkfinderforispark.data.remote.ParkDetail

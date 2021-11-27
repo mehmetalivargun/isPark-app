@@ -1,12 +1,7 @@
 package com.mehmetalivargun.parkfinderforispark.util
 
-fun String.resolveToFee():List<String>{
-    val seperated = this.split(';')
-    val result = arrayListOf<String>()
-    seperated.forEach {
-        result.addAll(it.split(':'))
-    }
 
-    return result
-
+fun String.resolveToFee():String{
+    val formatted =this.replace(';','\n')+'\n'
+    return formatted
 }
